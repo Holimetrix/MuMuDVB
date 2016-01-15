@@ -77,7 +77,7 @@ extern int timeout_no_diff;
 
 
 
-void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_p,stats_infos_t *stats_infos,int *server_id, int *no_daemon,char **dump_filename, int *listingcards)
+void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_p,stats_infos_t *stats_infos,int *server_id, int *no_daemon,char **dump_filename, int *listingcards, int *rotate, int *newspawn)
 {
 	const char short_options[] = "c:sdthvql";
 	const struct option long_options[] = {
@@ -90,6 +90,8 @@ void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_
 			{"list-cards", no_argument, NULL, 'l'},
 			{"card", required_argument, NULL, 'a'},
 			{"dumpfile", required_argument, NULL, 'z'},
+			{"rotate", required_argument, NULL, 'r'},
+			{"newspawn", required_argument, NULL, 'n'},
 			{0, 0, 0, 0}
 	};
 	int c, option_index = 0;
@@ -146,6 +148,12 @@ void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_
 			break;
 		case 'l':
 			*listingcards=1;
+			break;
+		case 'r':
+			*rotate=atoi(optarg);
+			break;
+		case 'n':
+			*newspawn=atoi(optarg);
 			break;
 		case 'z':
 			*dump_filename = (char *) malloc (strlen (optarg) + 1);

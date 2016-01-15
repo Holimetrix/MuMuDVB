@@ -50,7 +50,7 @@ void parse_cmd_line(int argc, char **argv,
 		int *server_id,
 		int *no_daemon,
 		char **dump_filename,
-		int *listingcards);
+		int *listingcards, int *rotate, int *newspawn);
 
 
 

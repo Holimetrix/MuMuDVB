@@ -135,6 +135,7 @@
 #include "unicast_http.h"
 #include "rtp.h"
 #include "log.h"
+#include "math.h"
 
 #if defined __UCLIBC__ || defined ANDROID
 #define program_invocation_short_name "mumudvb"
@@ -283,8 +284,18 @@ main (int argc, char **argv)
 #endif
 	FILE *pidfile;
 	char *dump_filename = NULL;
-	FILE *dump_file;
+	FILE **dump_files = NULL;
+	char *dump_filename_with_timestamp = NULL;
+	int dump_files_nb = 0;
+	int dump_files_nb_opened = 0;
 
+	// rotation
+	int rotate = 0;
+	int newspawn = 0;
+	int dump_files_cursor = 0;
+	int dump_files_cursor_move = 0;
+	int spawn_id = 0;
+	long *dump_files_close_timestamp = NULL;
 
 	int listingcards=0;
 	//Getopt
@@ -295,7 +306,10 @@ main (int argc, char **argv)
 			&server_id,
 			&no_daemon,
 			&dump_filename,
-			&listingcards);
+			&listingcards,
+			&rotate,
+			&newspawn
+	);
 
 
 	//List the detected cards
@@ -1201,16 +1215,56 @@ main (int argc, char **argv)
 	/******************************************************/
 	//We open the dump file if any
 	/******************************************************/
-	dump_file = NULL;
 	if(dump_filename)
 	{
-		dump_file = fopen (dump_filename, "w");
-		if (dump_file == NULL)
+		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_filename=%s", dump_filename);
+		if(rotate < 0)
+		{
+			rotate = 0;
+		}
+		if(newspawn < 0){
+			newspawn = rotate;
+		}
+		if(rotate > 0)
+		{
+			dump_files_nb = (int) ceil(rotate / (float) newspawn);
+		}else{
+			dump_files_nb = 1;
+		}
+		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_files_nb=%d",dump_files_nb);
+		dump_files = (FILE *) malloc(sizeof(FILE) * (dump_files_nb + 1));
+		if(rotate > 0 && newspawn > 0)
+		{
+			dump_files_close_timestamp = malloc(sizeof(long) * (dump_files_nb + 1));
+			// timestamp is 10 characters
+			dump_filename_with_timestamp = malloc(sizeof(char) * strlen(dump_filename) + 11); 
+			sprintf(dump_filename_with_timestamp, "%s%10ld", dump_filename, tv.tv_sec);
+			dump_files_close_timestamp[0] = tv.tv_sec+rotate;
+			dump_files[0] = fopen (dump_filename_with_timestamp, "w");
+		}else{
+			dump_files[0] = fopen (dump_filename, "w");
+		}
+		if (dump_files[0] == NULL)
 		{
 			log_message( log_module,  MSG_ERROR, "%s: %s\n",
-					dump_filename, strerror (errno));
+					dump_filename_with_timestamp, strerror (errno));
 			free(dump_filename);
+			dump_filename = NULL;
+			if(rotate > 0)
+			{
+				free(dump_filename_with_timestamp);
+				free(dump_files);
+				free(dump_files_close_timestamp);
+				rotate = 0;
+				newspawn = 0;
+				dump_files_nb_opened = 0;
+			}
 		}
+		else
+		{
+			dump_files_nb_opened = 1;
+		}
+		log_message( log_module, MSG_ERROR,"DEBUGGL: rotate=%d, newspawn=%d", rotate, newspawn);
 	}
 #ifndef ANDROID
 	mlockall(MCL_CURRENT | MCL_FUTURE);
@@ -1316,10 +1370,51 @@ main (int argc, char **argv)
 			actual_ts_packet=card_buffer.reading_buffer+card_buffer.read_buff_pos;
 
 			//If the user asked to dump the streams it's here that it should be done
-			if(dump_file)
-				if(fwrite(actual_ts_packet,sizeof(unsigned char),TS_PACKET_SIZE,dump_file)<TS_PACKET_SIZE)
-					log_message( log_module,MSG_WARN,"Error while writing the dump : %s", strerror(errno));
-
+			if(dump_files_nb > 0)
+			{
+				//get ts
+				gettimeofday (&tv, (struct timezone *) NULL);
+				for(dump_files_cursor=0; dump_files_cursor<dump_files_nb_opened; )
+				{
+					if(fwrite(actual_ts_packet,sizeof(unsigned char),TS_PACKET_SIZE,dump_files[dump_files_cursor])<TS_PACKET_SIZE)
+						log_message( log_module,MSG_WARN,"Error while writing the dump : %s", strerror(errno));
+					if(rotate > 0 && tv.tv_sec >= dump_files_close_timestamp[dump_files_cursor])
+					{
+						// close the file
+						fclose(dump_files[dump_files_cursor]);
+						// move down the other files
+						for(dump_files_cursor_move=dump_files_cursor; dump_files_cursor_move<dump_files_nb_opened - 1; dump_files_cursor_move++)
+						{
+							dump_files[dump_files_cursor_move] = dump_files[dump_files_cursor_move + 1];
+							dump_files_close_timestamp[dump_files_cursor_move] = dump_files_close_timestamp[dump_files_cursor_move + 1];
+						}
+						dump_files_close_timestamp[dump_files_nb_opened] = 0;
+						dump_files_nb_opened --;
+					}
+					else
+					{
+						dump_files_cursor ++;
+					}
+				}
+				if(newspawn > 0 && (tv.tv_sec - real_start_time) / rotate > spawn_id)
+				{
+					sprintf(dump_filename_with_timestamp, "%s%10ld", dump_filename, tv.tv_sec);
+					spawn_id = (tv.tv_sec - real_start_time) / rotate;
+					dump_files[dump_files_nb_opened] = fopen (dump_filename_with_timestamp, "w");
+					if (dump_files[dump_files_nb_opened] == NULL)
+					{
+						log_message( log_module,  MSG_ERROR, "%s: %s\n",
+							dump_filename_with_timestamp, strerror (errno));
+					}
+					else
+					{
+						if(fwrite(actual_ts_packet,sizeof(unsigned char),TS_PACKET_SIZE,dump_files[dump_files_nb_opened])<TS_PACKET_SIZE)
+							log_message( log_module,MSG_WARN,"Error while writing the dump : %s", strerror(errno));
+						dump_files_close_timestamp[dump_files_nb_opened] = tv.tv_sec + rotate;
+						dump_files_nb_opened ++;
+					}
+				}
+			}
 			// Test if the error bit is set in the TS packet received
 			if ((actual_ts_packet[1] & 0x80) == 0x80)
 			{
@@ -1515,8 +1610,21 @@ main (int argc, char **argv)
 	/******************************************************/
 	//End of main loop
 	/******************************************************/
-	if(dump_file)
-		fclose(dump_file);
+	if(dump_files_nb_opened)
+	{
+		for(dump_files_cursor=0; dump_files_cursor<dump_files_nb_opened; dump_files_cursor++)
+		{
+			fclose(dump_files[dump_files_cursor]);
+		}
+		if(rotate > 0)
+		{
+			free(dump_filename_with_timestamp);
+			free(dump_files);
+			free(dump_files_close_timestamp);
+			rotate = 0;
+			newspawn = 0;
+		}
+	}
 	gettimeofday (&tv, (struct timezone *) NULL);
 	log_message( log_module,  MSG_INFO,
 			"End of streaming. We streamed during %ldd %ld:%02ld:%02ld\n",(tv.tv_sec - real_start_time )/86400,((tv.tv_sec - real_start_time) % 86400 )/3600,((tv.tv_sec - real_start_time) % 3600)/60,(tv.tv_sec - real_start_time) %60 );
