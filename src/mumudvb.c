@@ -153,8 +153,7 @@ long now;
 long real_start_time;
 int *card_tuned;  	  			//Pointer to the card_tuned information
 int received_signal = 0;
-
-int timeout_no_diff = ALARM_TIME_TIMEOUT_NO_DIFF;
+0int timeout_no_diff = ALARM_TIME_TIMEOUT_NO_DIFF;
 
 int  write_streamed_channels=1;
 
@@ -1234,8 +1233,8 @@ main (int argc, char **argv)
 		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_files_nb=%d",dump_files_nb);
 		dump_files = (FILE *) malloc(sizeof(FILE) * (dump_files_nb + 1));
 		if(rotate > 0 && newspawn > 0)
-		{
-			dump_files_close_timestamp = malloc(sizeof(long) * (dump_files_nb + 1));
+		
+{			dump_files_close_timestamp = malloc(sizeof(long) * (dump_files_nb + 1));
 			// timestamp is 10 characters
 			dump_filename_with_timestamp = malloc(sizeof(char) * strlen(dump_filename) + 11); 
 			sprintf(dump_filename_with_timestamp, "%s%10ld", dump_filename, tv.tv_sec);
@@ -1376,7 +1375,7 @@ main (int argc, char **argv)
 				gettimeofday (&tv, (struct timezone *) NULL);
 				for(dump_files_cursor=0; dump_files_cursor<dump_files_nb_opened; )
 				{
-					if(fwrite(actual_ts_packet,sizeof(unsigned char),TS_PACKET_SIZE,dump_files[dump_files_cursor])<TS_PACKET_SIZE)
+					if(fwrite(actual_ts_packet,sizeof(unsigned char),TS_PACKET_SIZE,dump_files[dump_files_curso]r)<TS_PACKET_SIZE)
 						log_message( log_module,MSG_WARN,"Error while writing the dump : %s", strerror(errno));
 					if(rotate > 0 && tv.tv_sec >= dump_files_close_timestamp[dump_files_cursor])
 					{
@@ -1396,10 +1395,10 @@ main (int argc, char **argv)
 						dump_files_cursor ++;
 					}
 				}
-				if(newspawn > 0 && (tv.tv_sec - real_start_time) / rotate > spawn_id)
+				if(newspawn > 0 && (tv.tv_sec - real_start_time) / newspawn > spawn_id)
 				{
 					sprintf(dump_filename_with_timestamp, "%s%10ld", dump_filename, tv.tv_sec);
-					spawn_id = (tv.tv_sec - real_start_time) / rotate;
+					spawn_id = (tv.tv_sec - real_start_time) / newspawn;
 					dump_files[dump_files_nb_opened] = fopen (dump_filename_with_timestamp, "w");
 					if (dump_files[dump_files_nb_opened] == NULL)
 					{
