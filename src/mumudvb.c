@@ -1236,8 +1236,8 @@ main (int argc, char **argv)
 		
 {			dump_files_close_timestamp = malloc(sizeof(long) * (dump_files_nb + 1));
 			// timestamp is 10 characters
-			dump_filename_with_timestamp = malloc(sizeof(char) * strlen(dump_filename) + 11); 
-			sprintf(dump_filename_with_timestamp, "%s%10ld", dump_filename, tv.tv_sec);
+			dump_filename_with_timestamp = malloc(sizeof(char) * strlen(dump_filename) + 23);
+			sprintf(dump_filename_with_timestamp, "%s_%10ld_%10ld", dump_filename, tv.tv_sec, tv.tv_sec + rotate);
 			dump_files_close_timestamp[0] = tv.tv_sec+rotate;
 			dump_files[0] = fopen (dump_filename_with_timestamp, "w");
 		}else{
@@ -1397,7 +1397,7 @@ main (int argc, char **argv)
 				}
 				if(newspawn > 0 && (tv.tv_sec - real_start_time) / newspawn > spawn_id)
 				{
-					sprintf(dump_filename_with_timestamp, "%s%10ld", dump_filename, tv.tv_sec);
+					sprintf(dump_filename_with_timestamp, "%s_%10ld_%10ld", dump_filename, tv.tv_sec, tv.tv_sec + rotate);
 					spawn_id = (tv.tv_sec - real_start_time) / newspawn;
 					dump_files[dump_files_nb_opened] = fopen (dump_filename_with_timestamp, "w");
 					if (dump_files[dump_files_nb_opened] == NULL)
