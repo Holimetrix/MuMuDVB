@@ -157,8 +157,11 @@ void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_
 			break;
 		case 'z':
 			len = strlen(optarg);
-			if(len > 1 && optarg[len-2] == '/')
+			if(len > 0 && optarg[len-1] == '/')
+			{
+				log_message( log_module, MSG_WARN,"Remove trailing slash from dumpdir: %d ", len);
     			len--;
+			}
 			*dump_dir = (char *) malloc (len + 1);
 			if (!*dump_dir)
 			{
@@ -166,8 +169,8 @@ void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_
 				exit(ERROR_MEMORY);
 			}
 			strncpy (*dump_dir, optarg, len);
-			*dump_dir[len] = '\0';
-			log_message( log_module, MSG_WARN,"You've decided to dump the received stream into dir %s. Be warned, it can grow quite fast", *dump_dir);
+			*(*dump_dir + len) = '\0';
+			log_message( log_module, MSG_WARN,"You've decided to dump the received stream into dir '''%s'''. Be warned, it can grow quite fast", *dump_dir);
 			break;
 		}
 	}

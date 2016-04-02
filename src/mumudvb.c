@@ -312,6 +312,7 @@ main (int argc, char **argv)
 			&newspawn
 	);
 
+	log_message( log_module, MSG_WARN,"Params: dump_dir='%s', rotate='%d', newspawn='%d'", dump_dir, rotate, newspawn);
 
 	//List the detected cards
 	if(listingcards)
@@ -1218,7 +1219,7 @@ main (int argc, char **argv)
 	/******************************************************/
 	if(dump_dir)
 	{
-		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_dir=%s", dump_dir);
+		log_message( log_module, MSG_WARN,"DEBUGGL: dump_dir=%s", dump_dir);
 		if(rotate < 0)
 		{
 			rotate = 0;
@@ -1232,7 +1233,7 @@ main (int argc, char **argv)
 		}else{
 			dump_files_nb = 1;
 		}
-		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_files_nb=%d",dump_files_nb);
+		log_message( log_module, MSG_WARN,"DEBUGGL: dump_files_nb=%d",dump_files_nb);
 
 		if(rotate > 0 && newspawn > 0)
 		{
@@ -1254,8 +1255,7 @@ main (int argc, char **argv)
 		dump_files[0] = fopen (dump_filename_with_timestamp, "w");
 		if (dump_files[0] == NULL)
 		{
-			log_message( log_module,  MSG_ERROR, "%s: %s\n",
-					dump_filename_with_timestamp, strerror (errno));
+			log_message( log_module,  MSG_ERROR, "%s: %s\n", dump_filename_with_timestamp, strerror (errno));
 			free(dump_dir);
 			free(dump_filename_with_timestamp);
 			free(list_filename_with_timestamp);
@@ -1275,7 +1275,7 @@ main (int argc, char **argv)
 		{
 			dump_files_nb_opened = 1;
 		}
-		log_message( log_module, MSG_ERROR,"DEBUGGL: rotate=%d, newspawn=%d", rotate, newspawn);
+		log_message( log_module, MSG_WARN,"DEBUGGL: rotate=%d, newspawn=%d, nb_files=%d", rotate, newspawn, dump_files_nb);
 	}
 #ifndef ANDROID
 	mlockall(MCL_CURRENT | MCL_FUTURE);
@@ -1394,7 +1394,10 @@ main (int argc, char **argv)
 						// close the file
 						fclose(dump_files[dump_files_cursor]);
 						// rename the file
-						if(rename(list_filename_with_timestamp[dump_files_cursor], list_filename_with_timestamp_final[dump_files_cursor]) == 0)
+						log_message( log_module, MSG_WARN,"DEBUGGL: rename src=%s to dest=%s", 
+								list_filename_with_timestamp[dump_files_cursor], 
+								list_filename_with_timestamp_final[dump_files_cursor]);
+						if(rename(list_filename_with_timestamp[dump_files_cursor], list_filename_with_timestamp_final[dump_files_cursor]) != 0)
 						{
 							log_message( log_module, MSG_ERROR,"DEBUGGL: rename FAIL src=%s, dest=%s", 
 								list_filename_with_timestamp[dump_files_cursor], 
@@ -1424,6 +1427,7 @@ main (int argc, char **argv)
 					sprintf(dump_filename_with_timestamp_final, "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
 					list_filename_with_timestamp_final[0] = dump_filename_with_timestamp_final;
 
+					log_message( log_module,  MSG_WARN, "DEBUGGL: opening %s, will be renamed %s",dump_filename_with_timestamp, dump_filename_with_timestamp_final);
 					dump_files[dump_files_nb_opened] = fopen (dump_filename_with_timestamp, "w");
 					if (dump_files[dump_files_nb_opened] == NULL)
 					{
@@ -1433,7 +1437,7 @@ main (int argc, char **argv)
 					else
 					{
 						if(fwrite(actual_ts_packet,sizeof(unsigned char),TS_PACKET_SIZE,dump_files[dump_files_nb_opened])<TS_PACKET_SIZE)
-							log_message( log_module,MSG_WARN,"Error while writing the dump : %s", strerror(errno));
+							log_message( log_module,MSG_ERROR,"Error while writing the dump : %s", strerror(errno));
 						dump_files_close_timestamp[dump_files_nb_opened] = tv.tv_sec + rotate;
 						dump_files_nb_opened ++;
 					}
