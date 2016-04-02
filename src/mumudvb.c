@@ -282,12 +282,14 @@ main (int argc, char **argv)
 	FILE *cam_info;
 #endif
 	FILE *pidfile;
-	char *dump_filename = NULL;
+	char *dump_dir = NULL;
 	FILE **dump_files = NULL;
 	char *dump_filename_with_timestamp = NULL;
+	char *dump_filename_with_timestamp_final = NULL;
+	char **list_filename_with_timestamp = NULL;
+	char **list_filename_with_timestamp_final = NULL;
 	int dump_files_nb = 0;
 	int dump_files_nb_opened = 0;
-
 	// rotation
 	int rotate = 0;
 	int newspawn = 0;
@@ -304,7 +306,7 @@ main (int argc, char **argv)
 			&stats_infos,
 			&server_id,
 			&no_daemon,
-			&dump_filename,
+			&dump_dir,
 			&listingcards,
 			&rotate,
 			&newspawn
@@ -1214,9 +1216,9 @@ main (int argc, char **argv)
 	/******************************************************/
 	//We open the dump file if any
 	/******************************************************/
-	if(dump_filename)
+	if(dump_dir)
 	{
-		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_filename=%s", dump_filename);
+		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_dir=%s", dump_dir);
 		if(rotate < 0)
 		{
 			rotate = 0;
@@ -1231,28 +1233,38 @@ main (int argc, char **argv)
 			dump_files_nb = 1;
 		}
 		log_message( log_module, MSG_ERROR,"DEBUGGL: dump_files_nb=%d",dump_files_nb);
-		dump_files = (FILE **) malloc(sizeof(FILE *) * (dump_files_nb + 1));
+
 		if(rotate > 0 && newspawn > 0)
-		
-{			dump_files_close_timestamp = malloc(sizeof(long) * (dump_files_nb + 1));
-			// timestamp is 10 characters
-			dump_filename_with_timestamp = malloc(sizeof(char) * strlen(dump_filename) + 23);
-			sprintf(dump_filename_with_timestamp, "%s_%10ld_%10ld", dump_filename, tv.tv_sec, tv.tv_sec + rotate);
+		{
+			dump_files_close_timestamp = malloc(sizeof(long) * (dump_files_nb + 1));
 			dump_files_close_timestamp[0] = tv.tv_sec+rotate;
-			dump_files[0] = fopen (dump_filename_with_timestamp, "w");
-		}else{
-			dump_files[0] = fopen (dump_filename, "w");
 		}
+		// timestamp is 10 characters. File = /.dump_TS_TS => 1 + 1 + 4 + 1 + 10 + 1 + 10 = 26 
+		dump_filename_with_timestamp = malloc(sizeof(char) * strlen(dump_dir) + 26);
+		sprintf(dump_filename_with_timestamp, "%s/.dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
+		list_filename_with_timestamp = (char **) malloc(sizeof(char *) * (dump_files_nb + 1));
+		list_filename_with_timestamp[0] = dump_filename_with_timestamp;
+		// we dont have the dot anymore in final filenames: /dump_TS_TS                   = 25
+		dump_filename_with_timestamp_final = malloc(sizeof(char) * strlen(dump_dir) + 25);
+		list_filename_with_timestamp_final = (char **) malloc(sizeof(char *) * (dump_files_nb + 1));
+		sprintf(dump_filename_with_timestamp_final, "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
+		list_filename_with_timestamp_final[0] = dump_filename_with_timestamp_final;
+		// List of opened files
+		dump_files = (FILE **) malloc(sizeof(FILE *) * (dump_files_nb + 1));
+		dump_files[0] = fopen (dump_filename_with_timestamp, "w");
 		if (dump_files[0] == NULL)
 		{
 			log_message( log_module,  MSG_ERROR, "%s: %s\n",
 					dump_filename_with_timestamp, strerror (errno));
-			free(dump_filename);
-			dump_filename = NULL;
+			free(dump_dir);
+			free(dump_filename_with_timestamp);
+			free(list_filename_with_timestamp);
+			free(dump_filename_with_timestamp_final);
+			free(list_filename_with_timestamp_final);
+			free(dump_files);
+			dump_dir = NULL;
 			if(rotate > 0)
 			{
-				free(dump_filename_with_timestamp);
-				free(dump_files);
 				free(dump_files_close_timestamp);
 				rotate = 0;
 				newspawn = 0;
@@ -1381,11 +1393,20 @@ main (int argc, char **argv)
 					{
 						// close the file
 						fclose(dump_files[dump_files_cursor]);
+						// rename the file
+						if(rename(list_filename_with_timestamp[dump_files_cursor], list_filename_with_timestamp_final[dump_files_cursor]) == 0)
+						{
+							log_message( log_module, MSG_ERROR,"DEBUGGL: rename FAIL src=%s, dest=%s", 
+								list_filename_with_timestamp[dump_files_cursor], 
+								list_filename_with_timestamp_final[dump_files_cursor]);
+						}
 						// move down the other files
 						for(dump_files_cursor_move=dump_files_cursor; dump_files_cursor_move<dump_files_nb_opened - 1; dump_files_cursor_move++)
 						{
 							dump_files[dump_files_cursor_move] = dump_files[dump_files_cursor_move + 1];
 							dump_files_close_timestamp[dump_files_cursor_move] = dump_files_close_timestamp[dump_files_cursor_move + 1];
+							list_filename_with_timestamp[dump_files_cursor_move] = list_filename_with_timestamp[dump_files_cursor_move + 1];
+							list_filename_with_timestamp_final[dump_files_cursor_move] = list_filename_with_timestamp_final[dump_files_cursor_move + 1];
 						}
 						dump_files_close_timestamp[dump_files_nb_opened] = 0;
 						dump_files_nb_opened --;
@@ -1397,8 +1418,12 @@ main (int argc, char **argv)
 				}
 				if(newspawn > 0 && (tv.tv_sec - real_start_time) / newspawn > spawn_id)
 				{
-					sprintf(dump_filename_with_timestamp, "%s_%10ld_%10ld", dump_filename, tv.tv_sec, tv.tv_sec + rotate);
 					spawn_id = (tv.tv_sec - real_start_time) / newspawn;
+					sprintf(dump_filename_with_timestamp, "%s/.dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
+					list_filename_with_timestamp[dump_files_nb_opened] = dump_filename_with_timestamp;
+					sprintf(dump_filename_with_timestamp_final, "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
+					list_filename_with_timestamp_final[0] = dump_filename_with_timestamp_final;
+
 					dump_files[dump_files_nb_opened] = fopen (dump_filename_with_timestamp, "w");
 					if (dump_files[dump_files_nb_opened] == NULL)
 					{
@@ -1614,12 +1639,27 @@ main (int argc, char **argv)
 		for(dump_files_cursor=0; dump_files_cursor<dump_files_nb_opened; dump_files_cursor++)
 		{
 			fclose(dump_files[dump_files_cursor]);
+			if(rename(list_filename_with_timestamp[dump_files_cursor], list_filename_with_timestamp_final[dump_files_cursor]) == 0)
+			{
+				log_message( log_module, MSG_ERROR,"DEBUGGL: rename FAIL src=%s, dest=%s", 
+					list_filename_with_timestamp[dump_files_cursor], 
+					list_filename_with_timestamp_final[dump_files_cursor]);
+			}
 		}
+
+		free(dump_dir);
+		free(dump_filename_with_timestamp);
+		free(list_filename_with_timestamp);
+		free(dump_filename_with_timestamp_final);
+		free(list_filename_with_timestamp_final);
+		free(dump_files);
+		dump_dir = NULL;
 		if(rotate > 0)
 		{
-			free(dump_filename_with_timestamp);
-			free(dump_files);
 			free(dump_files_close_timestamp);
+			rotate = 0;
+			newspawn = 0;
+			dump_files_nb_opened = 0;
 			rotate = 0;
 			newspawn = 0;
 		}

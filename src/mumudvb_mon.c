@@ -77,7 +77,7 @@ extern int timeout_no_diff;
 
 
 
-void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_p,stats_infos_t *stats_infos,int *server_id, int *no_daemon,char **dump_filename, int *listingcards, int *rotate, int *newspawn)
+void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_p,stats_infos_t *stats_infos,int *server_id, int *no_daemon,char **dump_dir, int *listingcards, int *rotate, int *newspawn)
 {
 	const char short_options[] = "c:sdthvql";
 	const struct option long_options[] = {
@@ -89,12 +89,12 @@ void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_
 			{"help", no_argument, NULL, 'h'},
 			{"list-cards", no_argument, NULL, 'l'},
 			{"card", required_argument, NULL, 'a'},
-			{"dumpfile", required_argument, NULL, 'z'},
+			{"dumpdir", required_argument, NULL, 'z'},
 			{"rotate", required_argument, NULL, 'r'},
 			{"newspawn", required_argument, NULL, 'n'},
 			{0, 0, 0, 0}
 	};
-	int c, option_index = 0;
+	int c, option_index, len = 0;
 	if (argc == 1)
 	{
 		usage (program_invocation_short_name);
@@ -156,14 +156,18 @@ void parse_cmd_line(int argc, char **argv,char *(*conf_filename),tune_p_t *tune_
 			*newspawn=atoi(optarg);
 			break;
 		case 'z':
-			*dump_filename = (char *) malloc (strlen (optarg) + 1);
-			if (!*dump_filename)
+			len = strlen(optarg);
+			if(len > 1 && optarg[len-2] == '/')
+    			len--;
+			*dump_dir = (char *) malloc (len + 1);
+			if (!*dump_dir)
 			{
 				log_message( log_module, MSG_ERROR,"Problem with malloc : %s file : %s line %d\n",strerror(errno),__FILE__,__LINE__);
 				exit(ERROR_MEMORY);
 			}
-			strncpy (*dump_filename, optarg, strlen (optarg) + 1);
-			log_message( log_module, MSG_WARN,"You've decided to dump the received stream into %s. Be warned, it can grow quite fast", *dump_filename);
+			strncpy (*dump_dir, optarg, len);
+			*dump_dir[len] = '\0';
+			log_message( log_module, MSG_WARN,"You've decided to dump the received stream into dir %s. Be warned, it can grow quite fast", *dump_dir);
 			break;
 		}
 	}
