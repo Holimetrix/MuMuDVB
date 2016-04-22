@@ -1425,7 +1425,7 @@ main (int argc, char **argv)
 					sprintf(dump_filename_with_timestamp, "%s/.dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
 					list_filename_with_timestamp[dump_files_nb_opened] = dump_filename_with_timestamp;
 					sprintf(dump_filename_with_timestamp_final, "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
-					list_filename_with_timestamp_final[0] = dump_filename_with_timestamp_final;
+					list_filename_with_timestamp_final[dump_files_nb_opened] = dump_filename_with_timestamp_final;
 
 					log_message( log_module,  MSG_WARN, "DEBUGGL: opening %s, will be renamed %s",dump_filename_with_timestamp, dump_filename_with_timestamp_final);
 					dump_files[dump_files_nb_opened] = fopen (dump_filename_with_timestamp, "w");
