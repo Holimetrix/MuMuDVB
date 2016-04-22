@@ -284,8 +284,6 @@ main (int argc, char **argv)
 	FILE *pidfile;
 	char *dump_dir = NULL;
 	FILE **dump_files = NULL;
-	char *dump_filename_with_timestamp = NULL;
-	char *dump_filename_with_timestamp_final = NULL;
 	char **list_filename_with_timestamp = NULL;
 	char **list_filename_with_timestamp_final = NULL;
 	int dump_files_nb = 0;
@@ -1240,26 +1238,26 @@ main (int argc, char **argv)
 			dump_files_close_timestamp = malloc(sizeof(long) * (dump_files_nb + 1));
 			dump_files_close_timestamp[0] = tv.tv_sec+rotate;
 		}
-		// timestamp is 10 characters. File = /.dump_TS_TS => 1 + 1 + 4 + 1 + 10 + 1 + 10 = 26 
-		dump_filename_with_timestamp = malloc(sizeof(char) * strlen(dump_dir) + 26);
-		sprintf(dump_filename_with_timestamp, "%s/.dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
 		list_filename_with_timestamp = (char **) malloc(sizeof(char *) * (dump_files_nb + 1));
-		list_filename_with_timestamp[0] = dump_filename_with_timestamp;
-		// we dont have the dot anymore in final filenames: /dump_TS_TS                   = 25
-		dump_filename_with_timestamp_final = malloc(sizeof(char) * strlen(dump_dir) + 25);
 		list_filename_with_timestamp_final = (char **) malloc(sizeof(char *) * (dump_files_nb + 1));
-		sprintf(dump_filename_with_timestamp_final, "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
-		list_filename_with_timestamp_final[0] = dump_filename_with_timestamp_final;
+		for(dump_files_cursor=0; dump_files_cursor<dump_files_nb; dump_files_cursor++ )
+		{
+			list_filename_with_timestamp[dump_files_cursor] = malloc(sizeof(char) * strlen(dump_dir) + 26);
+			list_filename_with_timestamp_final[dump_files_cursor] = malloc(sizeof(char) * strlen(dump_dir) + 25);
+		}
+		// timestamp is 10 characters. File = /.dump_TS_TS => 1 + 1 + 4 + 1 + 10 + 1 + 10 = 26 
+		sprintf(list_filename_with_timestamp[0], "%s/.dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
+		// we dont have the dot anymore in final filenames: /dump_TS_TS                   = 25
+		sprintf(list_filename_with_timestamp_final[0], "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
+
 		// List of opened files
 		dump_files = (FILE **) malloc(sizeof(FILE *) * (dump_files_nb + 1));
-		dump_files[0] = fopen (dump_filename_with_timestamp, "w");
+		dump_files[0] = fopen (list_filename_with_timestamp[0], "w");
 		if (dump_files[0] == NULL)
 		{
-			log_message( log_module,  MSG_ERROR, "%s: %s\n", dump_filename_with_timestamp, strerror (errno));
+			log_message( log_module,  MSG_ERROR, "%s: %s\n", list_filename_with_timestamp[0], strerror (errno));
 			free(dump_dir);
-			free(dump_filename_with_timestamp);
 			free(list_filename_with_timestamp);
-			free(dump_filename_with_timestamp_final);
 			free(list_filename_with_timestamp_final);
 			free(dump_files);
 			dump_dir = NULL;
@@ -1270,12 +1268,15 @@ main (int argc, char **argv)
 				newspawn = 0;
 				dump_files_nb_opened = 0;
 			}
+			log_message( log_module,  MSG_ERROR, "DEBUGGL: now exiting because fopen failed -> %s: %s\n", list_filename_with_timestamp[0], strerror (errno));
+			exit(0);
 		}
 		else
 		{
 			dump_files_nb_opened = 1;
 		}
-		log_message( log_module, MSG_WARN,"DEBUGGL: rotate=%d, newspawn=%d, nb_files=%d", rotate, newspawn, dump_files_nb);
+		log_message( log_module, MSG_WARN,"DEBUGGL: rotate=%d, newspawn=%d, nb_files=%d, opened_files=%d", rotate, newspawn, dump_files_nb, dump_files_nb_opened);
+		log_message( log_module, MSG_WARN,"DEBUGGL: initial file %s will be renamed %s at %10ld", list_filename_with_timestamp[0], list_filename_with_timestamp_final[0], dump_files_close_timestamp[0]);
 	}
 #ifndef ANDROID
 	mlockall(MCL_CURRENT | MCL_FUTURE);
@@ -1394,9 +1395,9 @@ main (int argc, char **argv)
 						// close the file
 						fclose(dump_files[dump_files_cursor]);
 						// rename the file
-						log_message( log_module, MSG_WARN,"DEBUGGL: rename src=%s to dest=%s", 
+						log_message( log_module, MSG_WARN,"DEBUGGL: rename src=%s to dest=%s at pos %d", 
 								list_filename_with_timestamp[dump_files_cursor], 
-								list_filename_with_timestamp_final[dump_files_cursor]);
+								list_filename_with_timestamp_final[dump_files_cursor], dump_files_cursor);
 						if(rename(list_filename_with_timestamp[dump_files_cursor], list_filename_with_timestamp_final[dump_files_cursor]) != 0)
 						{
 							log_message( log_module, MSG_ERROR,"DEBUGGL: rename FAIL src=%s, dest=%s", 
@@ -1404,15 +1405,26 @@ main (int argc, char **argv)
 								list_filename_with_timestamp_final[dump_files_cursor]);
 						}
 						// move down the other files
+						log_message( log_module, MSG_WARN,"DEBUGGL: move to the left from pos %d ", dump_files_cursor);
 						for(dump_files_cursor_move=dump_files_cursor; dump_files_cursor_move<dump_files_nb_opened - 1; dump_files_cursor_move++)
 						{
 							dump_files[dump_files_cursor_move] = dump_files[dump_files_cursor_move + 1];
 							dump_files_close_timestamp[dump_files_cursor_move] = dump_files_close_timestamp[dump_files_cursor_move + 1];
-							list_filename_with_timestamp[dump_files_cursor_move] = list_filename_with_timestamp[dump_files_cursor_move + 1];
-							list_filename_with_timestamp_final[dump_files_cursor_move] = list_filename_with_timestamp_final[dump_files_cursor_move + 1];
+
+							strcpy(list_filename_with_timestamp[dump_files_cursor_move], list_filename_with_timestamp[dump_files_cursor_move + 1]);
+							strcpy(list_filename_with_timestamp_final[dump_files_cursor_move], list_filename_with_timestamp_final[dump_files_cursor_move + 1]);
 						}
 						dump_files_close_timestamp[dump_files_nb_opened] = 0;
 						dump_files_nb_opened --;
+						for(dump_files_cursor_move=0; dump_files_cursor_move<dump_files_nb_opened; dump_files_cursor_move++)
+						{
+							log_message( log_module, MSG_WARN,"DEBUGGL: list status pos %d, file %s -> %s, closed and renamed at %10ld",
+								dump_files_cursor_move,
+								list_filename_with_timestamp[dump_files_cursor_move],
+								list_filename_with_timestamp_final[dump_files_cursor_move],
+								dump_files_close_timestamp[dump_files_cursor_move]
+							);
+						}
 					}
 					else
 					{
@@ -1422,17 +1434,15 @@ main (int argc, char **argv)
 				if(newspawn > 0 && (tv.tv_sec - real_start_time) / newspawn > spawn_id)
 				{
 					spawn_id = (tv.tv_sec - real_start_time) / newspawn;
-					sprintf(dump_filename_with_timestamp, "%s/.dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
-					list_filename_with_timestamp[dump_files_nb_opened] = dump_filename_with_timestamp;
-					sprintf(dump_filename_with_timestamp_final, "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
-					list_filename_with_timestamp_final[dump_files_nb_opened] = dump_filename_with_timestamp_final;
+					sprintf(list_filename_with_timestamp[dump_files_nb_opened] , "%s/.dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
+					sprintf(list_filename_with_timestamp_final[dump_files_nb_opened] , "%s/dump_%10ld_%10ld", dump_dir, tv.tv_sec, tv.tv_sec + rotate);
 
-					log_message( log_module,  MSG_WARN, "DEBUGGL: opening %s, will be renamed %s",dump_filename_with_timestamp, dump_filename_with_timestamp_final);
-					dump_files[dump_files_nb_opened] = fopen (dump_filename_with_timestamp, "w");
+					log_message( log_module,  MSG_WARN, "DEBUGGL: open %s, pos %d will be renamed %s at %10ld",list_filename_with_timestamp[dump_files_nb_opened], dump_files_nb_opened, list_filename_with_timestamp_final[dump_files_nb_opened],  tv.tv_sec + rotate);
+					dump_files[dump_files_nb_opened] = fopen (list_filename_with_timestamp[dump_files_nb_opened], "w");
 					if (dump_files[dump_files_nb_opened] == NULL)
 					{
 						log_message( log_module,  MSG_ERROR, "%s: %s\n",
-							dump_filename_with_timestamp, strerror (errno));
+							list_filename_with_timestamp[dump_files_nb_opened], strerror (errno));
 					}
 					else
 					{
@@ -1440,6 +1450,17 @@ main (int argc, char **argv)
 							log_message( log_module,MSG_ERROR,"Error while writing the dump : %s", strerror(errno));
 						dump_files_close_timestamp[dump_files_nb_opened] = tv.tv_sec + rotate;
 						dump_files_nb_opened ++;
+
+
+						for(dump_files_cursor_move=0; dump_files_cursor_move<dump_files_nb_opened; dump_files_cursor_move++)
+						{
+							log_message( log_module, MSG_WARN,"DEBUGGL: list status pos %d, file %s -> %s, closed and renamed at %10ld",
+								dump_files_cursor_move,
+								list_filename_with_timestamp[dump_files_cursor_move],
+								list_filename_with_timestamp_final[dump_files_cursor_move],
+								dump_files_close_timestamp[dump_files_cursor_move]
+							);
+						}
 					}
 				}
 			}
@@ -1652,9 +1673,7 @@ main (int argc, char **argv)
 		}
 
 		free(dump_dir);
-		free(dump_filename_with_timestamp);
 		free(list_filename_with_timestamp);
-		free(dump_filename_with_timestamp_final);
 		free(list_filename_with_timestamp_final);
 		free(dump_files);
 		dump_dir = NULL;
